@@ -15,8 +15,6 @@ from db import get_db, TemplateModel, Template
 
 app = FastAPI()
 
-TEMPLATE_DIR = "./templates"
-
 def build_extraction_prompt(fields: list, input_text: str) -> str:
     """
     fields: list of fields
@@ -47,7 +45,6 @@ def build_extraction_prompt(fields: list, input_text: str) -> str:
 
 openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_KEY"))
 clip = ClipImageClassifier()
-os.makedirs(TEMPLATE_DIR, exist_ok=True)
 
 def truncate_fields(fields_dict, max_length=100):
     """Truncate string values in a dict if they're too long."""
