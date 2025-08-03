@@ -1,0 +1,89 @@
+[
+  {
+    "template_name": "modern_villa.indt",
+    "realtor": {
+      "name": "field_01",
+      "address": "field_02",
+      "email": "field_03",
+      "photo": "field_04"
+    },
+    "logos": ["logo_01"],
+    "property_images": ["img_01", "img_02", "img_03"],
+    "text_fields": ["title", "subtitle", "description", "features", "price"]
+  },
+  {
+    "template_name": "simple_listing.indt",
+    "realtor": {
+      "name": "field_11",
+      "address": "field_12",
+      "email": "field_13"
+    },
+    "logos": ["logo_1", "logo_2"],
+    "property_images": ["img_1"],
+    "text_fields": ["title", "summary"]
+  },
+  {
+    "template_name": "urban_flat.indt",
+    "realtor": {
+      "name": "field_A",
+      "address": "field_B",
+      "email": "field_C",
+      "photo": "field_D"
+    },
+    "logos": ["logo_main"],
+    "property_images": ["img_front", "img_living", "img_kitchen", "img_balcony", "img_view"],
+    "text_fields": ["headline", "intro", "key_features", "contact_info", "price_info", "note"]
+  },
+  {
+    "template_name": "single_page_flyer.indt",
+    "realtor": {
+      "name": "realtor_name_1",
+      "address": "realtor_address_1",
+      "email": "realtor_email_1"
+    },
+    "logos": ["logo_a"],
+    "property_images": ["img_a", "img_b"],
+    "text_fields": ["main_heading", "price_display"]
+  },
+  {
+    "template_name": "classic_brochure.indt",
+    "realtor": {
+      "name": "john_smith",
+      "address": "123 Main St",
+      "email": "john@example.com",
+      "photo": "realtor_photo_123"
+    },
+    "logos": ["main_logo", "partner_logo"],
+    "property_images": ["front_view", "kitchen", "bathroom", "backyard"],
+    "text_fields": [
+      "headline",
+      "tagline",
+      "property_details",
+      "agent_note",
+      "footer_text",
+      "terms_and_conditions"
+    ]
+  },
+  {
+    "template_name": "compact_layout.indt",
+    "realtor": {
+      "name": "field_X",
+      "address": "field_Y",
+      "email": "field_Z"
+    },
+    "logos": [],
+    "property_images": ["property_image_1"],
+    "text_fields": ["short_title", "desc"]
+  },
+  {
+    "template_name": "investment_opportunity.indt",
+    "realtor": {
+      "name": "investor_agent",
+      "address": "99 Capital Road",
+      "email": "invest@agency.com"
+    },
+    "logos": ["invest_logo"],
+    "property_images": ["img1", "img2", "img3"],
+    "text_fields": ["offer_title", "roi_info", "legal_disclaimer", "closing_note"]
+  }
+]
