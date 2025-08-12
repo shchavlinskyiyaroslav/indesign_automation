@@ -192,8 +192,8 @@ async def select_template(
             # Then we need to concat the info
 
             realtor_data = {
-                best_match.data['realtor']['email'] : (f"{email}\n "
-                                                       f"{address}"),
+                best_match.data['realtor']['email']: (f"{email}\n "
+                                                      f"{address}"),
                 best_match.data['realtor']['name']: name,
             }
         else:
@@ -204,10 +204,12 @@ async def select_template(
             }
 
         assigned_fields = {
-            **assigned_fields, **dict(zip(best_match.data["property_images"], property_images_list)),
-            **dict(zip(best_match.data["logos"], logo_images)),
-            **dict(zip([best_match.data['realtor']['photo']], realtor_images_list)),
-            **realtor_data,
+            "fields": {
+                **assigned_fields, **dict(zip(best_match.data["property_images"], property_images_list)),
+                **dict(zip(best_match.data["logos"], logo_images)),
+                **dict(zip([best_match.data['realtor']['photo']], realtor_images_list)),
+                **realtor_data,
+            },
             "output": best_match.data['output'],
             "template_name": best_match.name
         }
