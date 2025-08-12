@@ -46,6 +46,7 @@ class Realtor(BaseModel):
 class Template(BaseModel):
     template_name: str
     realtor: Optional[Realtor]
+    output: str
     logos: Optional[List[str]] = Field(default_factory=list)
     property_images: Optional[List[str]] = Field(default_factory=list)
     text_fields: Optional[List[str]] = Field(default_factory=list)
