@@ -1,0 +1,201 @@
+[
+    {
+    "template_name": "A32-HavenTemplate_1page1prop-edited.indt",
+    "output": "A32-HavenTemplate_1page1prop.indt",
+    "realtor": {
+      "name": "realtor_name",
+      "address": "realtor_info",
+      "email": "realtor_info"
+    },
+    "logos": [
+      "logo_company"
+    ],
+    "property_images": [
+      "image_hero",
+      "image_secondary_1",
+      "image_secondary_2",
+      "image_secondary_3"
+    ],
+    "text_fields": {
+      "text_headline": {
+        "approx_length": 17,
+        "format": "Spacious Family Home with Garden"
+      },
+      "text_address": {
+        "approx_length": 50,
+        "format": "123 Main Street, Springfield, IL 62704"
+      },
+      "text_stats_line": {
+        "approx_length": 47,
+        "format": "3 beds | 3 bathrooms | 1 fireplace"
+      },
+      "text_body_copy": {
+        "approx_length": 978,
+        "format": "Lorem Ipsum is simply dummy text of the printing and typesetting industry..."
+      }
+    }
+  },
+  {
+    "template_name": "A6-HavenTemplate_1page1prop.indt",
+    "output": "A6-HavenTemplate_1page1prop.indt",
+    "realtor": {
+      "name": "realtor_name",
+      "address": "realtor_info",
+      "email": "realtor_info",
+      "photo": "image_realtor_1"
+    },
+    "logos": [
+      "logo_company"
+    ],
+    "property_images": [
+      "image_banner",
+      "image_business_1",
+      "image_business_2"
+    ],
+    "text_fields": {
+      "text_headline_line1": {
+        "approx_length": 25,
+        "format": "Modern Office Space for Rent"
+      },
+      "text_address_street": {
+        "approx_length": 30,
+        "format": "456 Market Street"
+      },
+      "text_city_state_zip": {
+        "approx_length": 30,
+        "format": "San Francisco, CA 94103"
+      },
+      "text_features": {
+        "approx_length": 39,
+        "format": "0 BED  |  0 BATH\n0,000 SQFT.\n$0,000,000"
+      },
+      "text_body_copy": {
+        "approx_length": 840,
+        "format": "Perfectly located commercial property ideal for growing businesses..."
+      }
+    }
+  },
+  {
+    "template_name": "A16-HavenTemplate_1page1prop.indt",
+    "output": "A16-HavenTemplate_1page1prop.indt",
+    "realtor": {
+      "name": "realtor_name",
+      "address": "realtor_info",
+      "email": "realtor_info",
+      "photo": "image_realtor_1"
+    },
+    "logos": [
+      "logo_company"
+    ],
+    "property_images": [
+      "image_hero",
+      "image_secondary_1",
+      "image_secondary_2"
+    ],
+    "text_fields": {
+      "text_headline": {
+        "approx_length": 15,
+        "format": "Downtown Apartment"
+      },
+      "text_stats_line": {
+        "approx_length": 28,
+        "format": "0 BED | 0 BATH | 0,000 SQFT."
+      },
+      "text_body_copy": {
+        "approx_length": 490,
+        "format": "Experience the convenience of modern living with open-plan design..."
+      }
+    }
+  },
+  {
+    "template_name": "A31-HavenTemplate_1page1prop.indt",
+    "output": "A31-HavenTemplate_1page1prop.indt",
+    "realtor": {
+      "name": "realtor_name",
+      "address": "realtor_info",
+      "email": "realtor_info",
+      "photo": "image_realtor_1"
+    },
+    "logos": [
+      "logo_company"
+    ],
+    "property_images": [
+      "image_hero",
+      "image_feature_1",
+      "image_feature_2",
+      "image_feature_3"
+    ],
+    "text_fields": {
+      "text_headline": {
+        "approx_length": 17,
+        "format": "Charming Retreat"
+      },
+      "text_price": {
+        "approx_length": 15,
+        "format": "Price\n$450,000"
+      },
+      "text_beds": {
+        "approx_length": 10,
+        "format": "Beds\nX"
+      },
+      "text_baths": {
+        "approx_length": 10,
+        "format": "BATHS\nX"
+      },
+      "text_sqft": {
+        "approx_length": 12,
+        "format": "SQ. FT.\nXXXX"
+      },
+      "text_body_copy": {
+        "approx_length": 978,
+        "format": "Nestled in a quiet neighborhood, this home features spacious interiors..."
+      },
+      "text_address": {
+        "approx_length": 37,
+        "format": "000 address street, city, state 00000"
+      }
+    }
+  },
+  {
+    "template_name": "A12-HavenTemplate_1page1prop.indt",
+    "output": "A12-HavenTemplate_1page1prop.indt",
+    "realtor": {
+      "name": "realtor_info",
+      "address": "realtor_info",
+      "email": "realtor_info",
+      "photo": "image_realtor_1"
+    },
+    "logos": [
+      "logo_company"
+    ],
+    "property_images": [
+      "image_exterior",
+      "image_interior_1",
+      "image_interior_2",
+      "image_interior_3"
+    ],
+    "text_fields": {
+      "text_headline": {
+        "approx_length": 26,
+        "format": "Luxury Lakeside Villa"
+      },
+      "text_address": {
+        "approx_length": 36,
+        "format": "00 address street, city, state 00000"
+      },
+      "text_features": {
+        "approx_length": 40,
+        "format": "0 BED  |  0 BATH\n0,000 SQFT.\n$0,000,000"
+      },
+      "text_city_name": {
+        "approx_length": 14,
+        "format": "Orlando, FL"
+      },
+      "text_body_copy": {
+        "approx_length": 900,
+        "format": "Enjoy breathtaking lake views, spacious decks, and modern interiors..."
+      }
+    }
+  }
+]
+
