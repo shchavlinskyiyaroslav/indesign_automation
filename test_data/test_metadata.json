@@ -4,8 +4,7 @@
     "output": "A32-HavenTemplate_1page1prop.indt",
     "realtor": {
       "name": "realtor_name",
-      "address": "realtor_info",
-      "email": "realtor_info"
+      "info": "realtor_info"
     },
     "logos": [
       "logo_company"
@@ -40,8 +39,7 @@
     "output": "A6-HavenTemplate_1page1prop.indt",
     "realtor": {
       "name": "realtor_name",
-      "address": "realtor_info",
-      "email": "realtor_info",
+      "info": "realtor_info",
       "photo": "image_realtor_1"
     },
     "logos": [
@@ -80,8 +78,7 @@
     "output": "A16-HavenTemplate_1page1prop.indt",
     "realtor": {
       "name": "realtor_name",
-      "address": "realtor_info",
-      "email": "realtor_info",
+      "info": "realtor_info",
       "photo": "image_realtor_1"
     },
     "logos": [
@@ -112,8 +109,7 @@
     "output": "A31-HavenTemplate_1page1prop.indt",
     "realtor": {
       "name": "realtor_name",
-      "address": "realtor_info",
-      "email": "realtor_info",
+      "info": "realtor_info",
       "photo": "image_realtor_1"
     },
     "logos": [
@@ -161,8 +157,7 @@
     "output": "A12-HavenTemplate_1page1prop.indt",
     "realtor": {
       "name": "realtor_info",
-      "address": "realtor_info",
-      "email": "realtor_info",
+      "info": "realtor_info",
       "photo": "image_realtor_1"
     },
     "logos": [

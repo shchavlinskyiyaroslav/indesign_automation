@@ -65,10 +65,9 @@ async def upload_template(
             img_count = len(logos) + len(images) + (1 if (realtor and (realtor.photo or "").strip()) else 0)
 
             realtor_name = (realtor.name.strip() if (realtor and realtor.name) else None) if realtor else None
-            realtor_addr = (realtor.address.strip() if (realtor and realtor.address) else None) if realtor else None
-            realtor_email = (realtor.email.strip() if (realtor and realtor.email) else None) if realtor else None
+            realtor_info = (realtor.info.strip() if (realtor and realtor.info) else None) if realtor else None
 
-            realtor_texts = sum(1 for v in (realtor_name, realtor_addr, realtor_email) if v)
+            realtor_texts = sum(1 for v in (realtor_name, realtor_info) if v)
             text_count = len(t.text_fields) + realtor_texts
 
             # 3) Create parent row
@@ -76,8 +75,7 @@ async def upload_template(
                 template_name=t.template_name,
                 output=t.output,
                 realtor_name=realtor_name,
-                realtor_address=realtor_addr,
-                realtor_email=realtor_email,
+                realtor_info=realtor_info,
                 realtor_photo=(realtor.photo.strip() if (realtor and realtor.photo) else None) if realtor else None,
                 logos=list(logos),
                 property_images=list(images),
@@ -279,23 +277,19 @@ async def select_template(
     # 6) Build realtor text field injection mapping
     #    We stored the *field keys* (not values) in the flattened columns.
     realtor_name_key = (best_match.realtor_name or "").strip() if best_match.realtor_name else None
-    realtor_email_key = (best_match.realtor_email or "").strip() if best_match.realtor_email else None
-    realtor_addr_key = (best_match.realtor_address or "").strip() if best_match.realtor_address else None
+    realtor_info_key = (best_match.realtor_info or "").strip() if best_match.realtor_info else None
     realtor_photo_key = (best_match.realtor_photo or "").strip() if best_match.realtor_photo else None
 
-    # Handle cases where email/address keys are the same placeholder (e.g., "realtor_info")
-    if realtor_email_key and realtor_email_key == realtor_addr_key:
+    # Handle cases where name/address keys are the same placeholder (e.g., "realtor_info")
+    if realtor_name_key and realtor_info_key == realtor_name_key:
         realtor_text_map = {
-            realtor_email_key: f"{email}\n"
+            realtor_name_key: f"{name}\n{email}"
         }
-        if realtor_name_key:
-            realtor_text_map[realtor_name_key] = name
     else:
-        realtor_text_map = {}
-        if realtor_name_key:
-            realtor_text_map[realtor_name_key] = name
-        if realtor_email_key:
-            realtor_text_map[realtor_email_key] = email
+        realtor_text_map = {
+            realtor_name_key: name,
+            realtor_info_key: email,
+        }
 
     # 7) Image assignments
     prop_img_fields: List[str] = list(best_match.property_images or [])

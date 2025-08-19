@@ -18,8 +18,7 @@ class TemplateModel(Base):
     template_name = Column(String, nullable=False, unique=True, index=True)
     output = Column(String, nullable=False)
     realtor_name = Column(String, nullable=True)
-    realtor_address = Column(String, nullable=True)
-    realtor_email = Column(String, nullable=True)
+    realtor_info = Column(String, nullable=True)
     realtor_photo = Column(String, nullable=True)
 
     # Simple arrays — use PostgreSQL JSONB or ARRAY if supported
@@ -65,7 +64,7 @@ from typing import List, Optional, Dict
 
 class Realtor(BaseModel):
     name: Optional[str]
-    email: Optional[str]
+    info: Optional[str]
     photo: Optional[str] = None
 
 class TextFieldSpec(BaseModel):
