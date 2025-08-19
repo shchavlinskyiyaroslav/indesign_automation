@@ -1,6 +1,5 @@
 import json
-from typing import List
-
+from typing import List, Dict, Any
 import cv2
 import numpy as np
 import openai
@@ -8,56 +7,32 @@ import uvicorn
 from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException
 import os
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from clip_classifier import ClipImageClassifier
-from db import get_db, TemplateModel, Template
+from db import get_db, TemplateModel, Template, TextFieldModel
+from helpers import build_truncation_prompt, build_extraction_prompt
 
 app = FastAPI()
-
-
-def build_extraction_prompt(fields: list, input_text: str) -> str:
-    """
-    fields: list of fields
-    input_text: unstructured input text
-    """
-    field_list = "\n".join([f"- {name}" for name in fields])
-    json_template = "{\n" + ",\n".join([f'  "{name}": "..."' for name in fields]) + "\n}"
-
-    prompt = f"""
-        You are an intelligent field extractor.
-        
-        Your task is to extract structured information from the unstructured input text below.
-        
-        Extract the following fields. If any field is missing or unclear in the text, return `null` for that field.
-        This is for a real estate advertisement. 
-        
-        Fields to extract:
-        {field_list}
-        
-        Output the result as a valid JSON object like this:
-        {json_template}
-        
-        --- Begin Input ---
-        {input_text}
-        --- End Input ---
-        """
-    return prompt.strip()
-
-
 openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_KEY"))
 clip = ClipImageClassifier()
 
 
-def truncate_fields(fields_dict, max_length=100):
-    """Truncate string values in a dict if they're too long."""
-    truncated = {}
-    for k, v in fields_dict.items():
-        if isinstance(v, str) and len(v) > max_length:
-            truncated[k] = v[:max_length] + "…"
-        else:
-            truncated[k] = v
-    return truncated
+def truncate_text_if_needed(text: str, target_max_length: int, current_iteration: int = 1):
+    """Truncate a text string using llm if it's too long."""
+    if len(text) > target_max_length and current_iteration < 4:
+        completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": build_truncation_prompt(
+                text
+            )}],
+            temperature=0.3,
+        )
+        gpt_result = completion.choices[0].message.content.strip()
+        return truncate_text_if_needed(gpt_result, target_max_length, current_iteration+1)
+    else:
+        return text
 
 
 @app.post("/upload-template/")
@@ -65,28 +40,94 @@ async def upload_template(
         metadata: UploadFile = File(...),
         db: Session = Depends(get_db)
 ):
-    content = await metadata.read()
+    raw = await metadata.read()
     try:
-        data = json.loads(content)
-        for obj in data:
-            template = Template(**obj)
-            img_count = (len(template.model_dump()['property_images'] or []) + len(
-                template.model_dump()['logos'] or []) +
-                         (1 if template.model_dump()['realtor']['photo'] else 0))
-            text_count = len(template.model_dump()['text_fields'] or []) + 3  # 3 for realtor's name, address and email
+        payload = json.loads(raw)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
 
+    if not isinstance(payload, list) or not payload:
+        raise HTTPException(status_code=400, detail="Body must be a non-empty JSON array")
+
+    accepted = 0
+    duplicates = 0
+    errors: List[Dict[str, Any]] = []
+
+    for i, obj in enumerate(payload):
+        try:
+            # 1) Validate strictly with Pydantic
+            t = Template(**obj)
+
+            # 2) Compute counts
+            realtor = t.realtor or None
+            logos = t.logos or []
+            images = t.property_images or []
+            img_count = len(logos) + len(images) + (1 if (realtor and (realtor.photo or "").strip()) else 0)
+
+            realtor_name = (realtor.name.strip() if (realtor and realtor.name) else None) if realtor else None
+            realtor_addr = (realtor.address.strip() if (realtor and realtor.address) else None) if realtor else None
+            realtor_email = (realtor.email.strip() if (realtor and realtor.email) else None) if realtor else None
+
+            realtor_texts = sum(1 for v in (realtor_name, realtor_addr, realtor_email) if v)
+            text_count = len(t.text_fields) + realtor_texts
+
+            # 3) Create parent row
             db_template = TemplateModel(
-                name=template.template_name,
-                data=template.model_dump(),  # store full nested JSON as dict
+                template_name=t.template_name,
+                output=t.output,
+                realtor_name=realtor_name,
+                realtor_address=realtor_addr,
+                realtor_email=realtor_email,
+                realtor_photo=(realtor.photo.strip() if (realtor and realtor.photo) else None) if realtor else None,
+                logos=list(logos),
+                property_images=list(images),
                 img_count=img_count,
-                text_count=text_count
+                text_count=text_count,
             )
 
             db.add(db_template)
+            db.flush()  # obtain db_template.id before adding children
+
+            # 4) Add text fields (children)
+            children = []
+            for name, spec in t.text_fields.items():
+                # enforce clean key
+                key = name.strip()
+                if not key:
+                    continue
+                children.append(
+                    TextFieldModel(
+                        template_id=db_template.id,
+                        name=key,
+                        approx_length=spec.approx_length,
+                        format=spec.format.strip(),
+                    )
+                )
+
+            if children:
+                db.add_all(children)
+
+            # 5) Commit this item (isolate duplicates/violations)
             db.commit()
-            db.refresh(db_template)
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Invalid JSON structure: {str(e)}")
+            accepted += 1
+
+        except IntegrityError as ie:
+            db.rollback()
+            # assume UNIQUE(template_name) conflict => duplicate
+            duplicates += 1
+            errors.append(
+                {"index": i, "template_name": obj.get("template_name"), "error": "duplicate", "detail": str(ie.orig)})
+        except Exception as e:
+            db.rollback()
+            errors.append(
+                {"index": i, "template_name": obj.get("template_name"), "error": "invalid_item", "detail": str(e)})
+
+    return {
+        "accepted": accepted,
+        "duplicates": duplicates,
+        "rejected": len(errors),
+        "errors": errors,
+    }
 
 
 @app.post("/select-template/")
@@ -98,127 +139,203 @@ async def select_template(
         address: str = Form(...),
         db: Session = Depends(get_db)
 ):
+    # 1) Read text payload
     try:
         content = await text_file.read()
         decoded = content.decode("utf-8")
+        # injecting address into decoded text description
+
+        decoded += f"\n Property address: {address}"
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to read text file: {e}")
 
+    # 2) Classify images via CLIP
     results = []
     property_images = 0
-    property_images_list = []
+    property_images_list: List[str] = []
 
     realtor_photos = 0
-    realtor_images_list = []
+    realtor_images_list: List[str] = []
 
     logos = 0
-    logo_images = []
+    logo_images: List[str] = []
 
-    # classifying images that user uploads
     for img in images:
-        # Load image bytes into memory
-        content = await img.read()
-        file_bytes = np.asarray(bytearray(content), dtype=np.uint8)
-        img_np = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        try:
+            raw = await img.read()
+            file_bytes = np.asarray(bytearray(raw), dtype=np.uint8)
+            img_np = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
-        # Classify using CLIP
-        label, score = clip.classify(img_np)
+            label, score = clip.classify(img_np)
 
-        if clip.is_logo_related(label): logos += 1; logo_images.append(img.filename)
-        if clip.is_person_related(label): realtor_photos += 1; realtor_images_list.append(img.filename)
-        if clip.is_house_related(label): property_images += 1; property_images_list.append(img.filename)
+            if clip.is_logo_related(label):
+                logos += 1
+                logo_images.append(img.filename)
+            if clip.is_person_related(label):
+                realtor_photos += 1
+                realtor_images_list.append(img.filename)
+            if clip.is_house_related(label):
+                property_images += 1
+                property_images_list.append(img.filename)
 
-        results.append({
-            "filename": img.filename,
-            "label": label,
-            "score": round(score, 4),
-            "category": (
-                "house" if clip.is_house_related(label) else
-                "logo" if clip.is_logo_related(label) else
-                "person" if clip.is_person_related(label) else
-                "other"
-            )
-        })
-    # images cannot be generated. Text can be ( for example, headers, titles, etc ). So we need to check whether no.
-    # of images are close
+            results.append({
+                "filename": img.filename,
+                "label": label,
+                "score": round(float(score), 4),
+                "category": (
+                    "house" if clip.is_house_related(label) else
+                    "logo" if clip.is_logo_related(label) else
+                    "person" if clip.is_person_related(label) else
+                    "other"
+                )
+            })
+        except Exception as e:
+            # If one image fails, continue; you can choose to hard-fail instead.
+            results.append({
+                "filename": img.filename,
+                "error": f"classification_failed: {e}"
+            })
 
     image_count = len(images)
 
-    all_templates = db.query(TemplateModel).all()
+    # 3) Load all templates from DB (normalized schema)
+    all_templates: List[TemplateModel] = db.query(TemplateModel).all()
+    if not all_templates:
+        raise HTTPException(status_code=404, detail="No templates available")
 
-    def score(template):
-        return abs(template.img_count - image_count)
+    # Helper: scoring
+    def score_by_total_images(t: TemplateModel) -> int:
+        return abs((t.img_count or 0) - image_count)
 
-    # scoring algorithm for templates
-    sorted_templates = sorted(all_templates, key=score)
-    penalties = []
-    for template in sorted_templates:
+    # Sort by closeness of total image count first
+    sorted_templates = sorted(all_templates, key=score_by_total_images)
+
+    # Then compute penalties based on detailed image distribution + realtor photo slot
+    penalties: List[int] = []
+    for t in sorted_templates:
         penalty = 0
-        template_data = Template(**template.data)
-        if len(template_data.property_images) != property_images:
-            penalty += abs(len(template_data.property_images) - property_images)
-        if len(template_data.logos) != logos:
-            penalty += abs(len(template_data.logos) - logos)
-        if ((not template_data.realtor.photo and realtor_photos)
-                or (realtor_photos and not template_data.realtor.photo)):
+
+        # property_images and logos are arrays (JSON/JSONB) in the new schema
+        t_prop_imgs = t.property_images or []
+        t_logos = t.logos or []
+
+        if len(t_prop_imgs) != property_images:
+            penalty += abs(len(t_prop_imgs) - property_images)
+
+        if len(t_logos) != logos:
+            penalty += abs(len(t_logos) - logos)
+
+        # Realtor photo slot presence vs detected person images
+        has_realtor_photo_slot = bool((t.realtor_photo or "").strip()) if t.realtor_photo else False
+        if (realtor_photos and not has_realtor_photo_slot) or (has_realtor_photo_slot and not realtor_photos):
             penalty += 1
 
         penalties.append(penalty)
 
-    best_match = sorted_templates[penalties.index(min(penalties))]
+    # Pick best match by minimal penalty
+    best_match: TemplateModel = sorted_templates[penalties.index(min(penalties))]
 
-    # Currently, all images of property are assigned randomly. We can decide whether intelligent image assignment is
-    # necessary later. All images of logo and realtor is put into proper fields
+    # 4) Rebuild text_fields dict from child rows for prompt
+    #    Each child has: name, approx_length, format
+    children: List[TextFieldModel] = (
+        db.query(TextFieldModel)
+        .filter(TextFieldModel.template_id == best_match.id)
+        .all()
+    )
+    best_match_text_fields: Dict[str, Dict[str, Any]] = {
+        c.name: {"approx_length": c.approx_length, "format": c.format}
+        for c in children
+        if c.name and c.name.strip()
+    }
 
+    if not best_match_text_fields:
+        # You can decide to allow empty text fields; here we enforce at least one
+        raise HTTPException(status_code=422, detail=f"Template '{best_match.template_name}' has no text fields")
+
+    # 5) Ask GPT to extract/assign text values for text_fields
     try:
-
         completion = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": build_extraction_prompt(
-                best_match.data["text_fields"],
+                best_match_text_fields,  # strict dict: {field: {approx_length, format}}
                 decoded
             )}],
             temperature=0.3,
         )
         gpt_result = completion.choices[0].message.content.strip()
-        assigned_fields = json.loads(gpt_result)
-        # injecting remaining fields
+        print(gpt_result)
+        assigned_fields = json.loads(gpt_result)  # Expecting dict: { field_name: "value", ... }
+        for field in assigned_fields:
+            for template_field in best_match_text_fields:
+                if field == template_field and assigned_fields[field] is not None:
+                    max_size = best_match_text_fields[template_field]["approx_length"]
+                    assigned_fields[field] = truncate_text_if_needed(assigned_fields[field], max_size)
 
-        if best_match.data['realtor']['email'] == best_match.data['realtor']['address']:
-            # sometimes all the fields in realtor, except for realtor logo may be the same. See below
-            #
-            # {"address": "realtor_info",
-            # "email": "realtor_info",}
-            # Then we need to concat the info
-
-            realtor_data = {
-                best_match.data['realtor']['email']: (f"{email}\n "
-                                                      f"{address}"),
-                best_match.data['realtor']['name']: name,
-            }
-        else:
-            realtor_data = {
-                best_match.data['realtor']['name']: name,
-                best_match.data['realtor']['email']: email,
-                best_match.data['realtor']['address']: address,
-            }
-
-        assigned_fields = {
-            "fields": {
-                **assigned_fields, **dict(zip(best_match.data["property_images"], property_images_list)),
-                **dict(zip(best_match.data["logos"], logo_images)),
-                **dict(zip([best_match.data['realtor']['photo']], realtor_images_list)),
-                **realtor_data,
-            },
-            "output": best_match.data['output'],
-            "template_name": best_match.name
-        }
-
-
+        if not isinstance(assigned_fields, dict):
+            raise ValueError("Model did not return a JSON object mapping field names to values")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"GPT data extraction failed: {e}")
 
-    return assigned_fields
+    # 6) Build realtor text field injection mapping
+    #    We stored the *field keys* (not values) in the flattened columns.
+    realtor_name_key = (best_match.realtor_name or "").strip() if best_match.realtor_name else None
+    realtor_email_key = (best_match.realtor_email or "").strip() if best_match.realtor_email else None
+    realtor_addr_key = (best_match.realtor_address or "").strip() if best_match.realtor_address else None
+    realtor_photo_key = (best_match.realtor_photo or "").strip() if best_match.realtor_photo else None
+
+    # Handle cases where email/address keys are the same placeholder (e.g., "realtor_info")
+    if realtor_email_key and realtor_email_key == realtor_addr_key:
+        realtor_text_map = {
+            realtor_email_key: f"{email}\n"
+        }
+        if realtor_name_key:
+            realtor_text_map[realtor_name_key] = name
+    else:
+        realtor_text_map = {}
+        if realtor_name_key:
+            realtor_text_map[realtor_name_key] = name
+        if realtor_email_key:
+            realtor_text_map[realtor_email_key] = email
+
+    # 7) Image assignments
+    prop_img_fields: List[str] = list(best_match.property_images or [])
+    logo_fields: List[str] = list(best_match.logos or [])
+
+    prop_assignment = dict(zip(prop_img_fields, property_images_list))
+    logo_assignment = dict(zip(logo_fields, logo_images))
+    realtor_photo_assignment = (
+        {realtor_photo_key: realtor_images_list[0]} if (realtor_photo_key and realtor_images_list) else {}
+    )
+
+    # 8) Final payload
+    response = {
+        "fields": {
+            **assigned_fields,  # from GPT (text field values)
+            **prop_assignment,  # property images
+            **logo_assignment,  # logos
+            **realtor_photo_assignment,  # realtor photo
+            **realtor_text_map,  # realtor text fields
+        },
+        "output": best_match.output,
+        "template_name": best_match.template_name,
+        "debug": {
+            "chosen_template": {
+                "template_name": best_match.template_name,
+                "img_count": best_match.img_count,
+                "text_count": best_match.text_count,
+                "n_text_fields": len(best_match_text_fields),
+            },
+            "image_stats": {
+                "input_total": image_count,
+                "property_images": property_images,
+                "logos": logos,
+                "realtor_photos": realtor_photos,
+            },
+            "classification": results,  # optional: per-image classification summary
+        }
+    }
+
+    return response
 
 
 if __name__ == "__main__":
