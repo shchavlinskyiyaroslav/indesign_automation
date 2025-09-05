@@ -201,37 +201,61 @@ async def select_template(
     if not all_templates:
         raise HTTPException(status_code=404, detail="No templates available")
 
-    # Helper: scoring
-    def score_by_total_images(t: TemplateModel) -> int:
-        return abs((t.img_count or 0) - image_count)
+    # Improved template selection algorithm
+    def calculate_template_score(t: TemplateModel) -> float:
+        """Calculate comprehensive score for template matching"""
+        t_prop_imgs = len(t.property_images or [])
+        t_logos = len(t.logos or [])
+        t_realtor_photo = 1 if t.realtor_photo else 0
+        
+        # 1. Image Distribution Score (most important)
+        property_penalty = abs(t_prop_imgs - property_images)
+        logo_penalty = abs(t_logos - logos)
+        realtor_penalty = abs(t_realtor_photo - realtor_photos)
+        distribution_score = property_penalty + logo_penalty + realtor_penalty
+        
+        # 2. Total Image Count Score (secondary)
+        t_total = t_prop_imgs + t_logos + t_realtor_photo
+        input_total = property_images + logos + realtor_photos
+        total_count_penalty = abs(t_total - input_total)
+        
+        # 3. Template Flexibility Score (bonus for templates with more text fields)
+        text_fields_count = len(t.text_fields or [])
+        flexibility_bonus = -min(text_fields_count * 0.1, 1.0)  # Max bonus of 1.0
+        
+        # 4. Realtor Photo Compatibility Score
+        realtor_compatibility = 0
+        if realtor_photos > 0 and not t.realtor_photo:
+            realtor_compatibility = 2  # Penalty for having realtor photos but no slot
+        elif realtor_photos == 0 and t.realtor_photo:
+            realtor_compatibility = 1  # Minor penalty for having slot but no photos
+        
+        # 5. Image Capacity Score (penalty for having too many required images)
+        capacity_penalty = 0
+        if t_total > input_total:
+            capacity_penalty = (t_total - input_total) * 0.5
+        
+        # Calculate total score (lower is better)
+        total_score = (
+            distribution_score * 3 +  # Most important factor
+            total_count_penalty * 2 +  # Secondary factor
+            realtor_compatibility * 2 +  # Important for realtor photos
+            capacity_penalty +  # Minor penalty for excess capacity
+            flexibility_bonus  # Bonus for flexibility
+        )
+        
+        return total_score
 
-    # Sort by closeness of total image count first
-    sorted_templates = sorted(all_templates, key=score_by_total_images)
-
-    # Then compute penalties based on detailed image distribution + realtor photo slot
-    penalties: List[int] = []
-    for t in sorted_templates:
-        penalty = 0
-
-        # property_images and logos are arrays (JSON/JSONB) in the new schema
-        t_prop_imgs = t.property_images or []
-        t_logos = t.logos or []
-
-        if len(t_prop_imgs) != property_images:
-            penalty += abs(len(t_prop_imgs) - property_images)
-
-        if len(t_logos) != logos:
-            penalty += abs(len(t_logos) - logos)
-
-        # Realtor photo slot presence vs detected person images
-        has_realtor_photo_slot = bool((t.realtor_photo or "").strip()) if t.realtor_photo else False
-        if (realtor_photos and not has_realtor_photo_slot) or (has_realtor_photo_slot and not realtor_photos):
-            penalty += 1
-
-        penalties.append(penalty)
-
-    # Pick best match by minimal penalty
-    best_match: TemplateModel = sorted_templates[penalties.index(min(penalties))]
+    # Sort templates by score (lower is better)
+    template_scores = [(t, calculate_template_score(t)) for t in all_templates]
+    template_scores.sort(key=lambda x: x[1])
+    
+    # Pick best match
+    best_match: TemplateModel = template_scores[0][0]
+    
+    # Debug: Print template selection info
+    print(f"DEBUG: Selected template {best_match.template_name} with score {template_scores[0][1]:.2f}")
+    print(f"DEBUG: Top 3 candidates: {[(t.template_name, score) for t, score in template_scores[:3]]}")
 
     # 4) Rebuild text_fields dict from child rows for prompt
     #    Each child has: name, approx_length, format
@@ -318,6 +342,7 @@ async def select_template(
                 "img_count": best_match.img_count,
                 "text_count": best_match.text_count,
                 "n_text_fields": len(best_match_text_fields),
+                "selection_score": template_scores[0][1],  # Score of selected template
             },
             "image_stats": {
                 "input_total": image_count,
@@ -325,6 +350,10 @@ async def select_template(
                 "logos": logos,
                 "realtor_photos": realtor_photos,
             },
+            "template_ranking": [
+                {"template_name": t.template_name, "score": score} 
+                for t, score in template_scores[:3]  # Top 3 candidates
+            ],
             "classification": results,  # optional: per-image classification summary
         }
     }
